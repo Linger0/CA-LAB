@@ -78,6 +78,8 @@ wire [`WS_TO_FS_BUS_WD -1:0] ws_to_fs_bus;
 
 wire [`ES_TO_TLB_BUS_WD -1:0] es_to_tlb_bus;
 wire [`TLB_TO_ES_BUS_WD -1:0] tlb_to_es_bus;
+wire [`FS_TO_TLB_BUS_WD -1:0] fs_to_tlb_bus;
+wire [`TLB_TO_FS_BUS_WD -1:0] tlb_to_fs_bus;
 
 wire        ms_to_es_ex;
 wire        ms_to_es_mtc0;
@@ -118,6 +120,9 @@ if_stage if_stage(
     .fs_to_ds_bus   (fs_to_ds_bus   ),
     //exception
     .ws_to_fs_bus   (ws_to_fs_bus   ),
+    //tlb
+    .fs_to_tlb_bus  (fs_to_tlb_bus  ),
+    .tlb_to_fs_bus  (tlb_to_fs_bus  ),
     // inst sram-like
     .inst_req       (inst_req       ),
     .inst_size      (inst_size      ),
@@ -230,6 +235,8 @@ wb_stage wb_stage(
     //tlb
     .es_to_tlb_bus  (es_to_tlb_bus  ),
     .tlb_to_es_bus  (tlb_to_es_bus  ),
+    .fs_to_tlb_bus  (fs_to_tlb_bus  ),
+    .tlb_to_fs_bus  (tlb_to_fs_bus  ),
     //trace debug interface
     .debug_wb_pc      (debug_wb_pc      ),
     .debug_wb_rf_wen  (debug_wb_rf_wen  ),

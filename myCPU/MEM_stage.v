@@ -28,6 +28,7 @@ reg         ms_valid;
 wire        ms_ready_go;
 
 reg [`ES_TO_MS_BUS_WD -1:0] es_to_ms_bus_r;
+wire        ms_tlb_ref;
 wire        ms_tlb_flush;
 wire        ms_tlbr_op;
 wire        ms_tlbwi_op;
@@ -52,7 +53,8 @@ wire        ms_gr_we;
 wire [ 4:0] ms_dest;
 wire [31:0] ms_alu_result;
 wire [31:0] ms_pc;
-assign {ms_tlb_flush   ,  //162:162
+assign {ms_tlb_ref     ,  //163:163
+        ms_tlb_flush   ,  //162:162
         ms_tlbr_op     ,  //161:161
         ms_tlbwi_op    ,  //160:160
         ms_res_from_mem,  //159:159
@@ -91,7 +93,8 @@ assign ms_to_ds_bus = {ms_rf_we         ,  //38:38
                        ms_final_result     //31:0
                       };
 
-assign ms_to_ws_bus = {ms_tlb_flush   ,  //119:119
+assign ms_to_ws_bus = {ms_tlb_ref     ,  //120:120
+                       ms_tlb_flush   ,  //119:119
                        ms_tlbr_op     ,  //118:118
                        ms_tlbwi_op    ,  //117:117
                        ms_bd          ,  //116:116

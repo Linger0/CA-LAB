@@ -1,18 +1,25 @@
 `ifndef MYCPU_H
     `define MYCPU_H
-
+    //branch
     `define BR_BUS_WD        34
-    `define FS_TO_DS_BUS_WD  66
-    `define DS_TO_ES_BUS_WD  173
-    `define ES_TO_MS_BUS_WD  163
-    `define ES_TO_DS_BUS_WD  39
+    //cpu
+    `define FS_TO_DS_BUS_WD  69
+    `define DS_TO_ES_BUS_WD  175
+    `define ES_TO_MS_BUS_WD  164
+    `define MS_TO_WS_BUS_WD  121
+    //tlb
+    `define FS_TO_TLB_BUS_WD 20
     `define ES_TO_TLB_BUS_WD 21
+    `define TLB_TO_FS_BUS_WD 29
     `define TLB_TO_ES_BUS_WD 30
-    `define MS_TO_WS_BUS_WD  120
+    //forwarding
+    `define ES_TO_DS_BUS_WD  39
     `define MS_TO_DS_BUS_WD  39
-    `define WS_TO_RF_BUS_WD  39
     `define WS_TO_DS_BUS_WD  39
-    `define WS_TO_FS_BUS_WD  67
+    //reg file
+    `define WS_TO_RF_BUS_WD  39
+    //exception
+    `define WS_TO_FS_BUS_WD  68
     
     //cp0
     `define CR_INDEX    0

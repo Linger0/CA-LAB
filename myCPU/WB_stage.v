@@ -19,8 +19,10 @@ module wb_stage(
     //block tlbp
     output                          ws_to_es_mtc0 ,
     //tlb
-    input  [`ES_TO_TLB_BUS_WD -1:0] es_to_tlb_bus,
-    output [`TLB_TO_ES_BUS_WD -1:0] tlb_to_es_bus,
+    input  [`ES_TO_TLB_BUS_WD -1:0] es_to_tlb_bus ,
+    output [`TLB_TO_ES_BUS_WD -1:0] tlb_to_es_bus ,
+    input  [`FS_TO_TLB_BUS_WD -1:0] fs_to_tlb_bus ,
+    output [`TLB_TO_FS_BUS_WD -1:0] tlb_to_fs_bus ,
     //trace debug interface
     output [31:0] debug_wb_pc     ,
     output [ 3:0] debug_wb_rf_wen ,
@@ -32,6 +34,7 @@ reg         ws_valid;
 wire        ws_ready_go;
 
 reg [`MS_TO_WS_BUS_WD -1:0] ms_to_ws_bus_r;
+wire        ws_tlb_ref;
 wire        ws_tlb_flush;
 wire        ws_tlbr_op;
 wire        ws_tlbwi_op;
@@ -47,7 +50,8 @@ wire        ws_gr_we;
 wire [ 4:0] ws_dest;
 wire [31:0] ws_final_result;
 wire [31:0] ws_pc;
-assign {ws_tlb_flush   ,  //119:119
+assign {ws_tlb_ref     ,  //120:120
+        ws_tlb_flush   ,  //119:119
         ws_tlbr_op     ,  //118:118
         ws_tlbwi_op    ,  //117:117
         ws_bd          ,  //116:116
@@ -75,6 +79,7 @@ assign ws_to_rf_bus = {rf_we   ,  //37:37
 wire        tlb_flush;
 
 wire        ex;
+wire        tlb_ref;
 wire        eret_flush;
 wire        mtc0_we;
 wire [31:0] ws_c0_wdata;
@@ -142,7 +147,8 @@ wire [ 2:0] r_c1;
 wire        r_d1;
 wire        r_v1;
 
-assign ws_to_fs_bus = {tlb_flush , //66:66
+assign ws_to_fs_bus = {tlb_ref   , //67:67
+                       tlb_flush , //66:66
                        ws_pc     , //65:34
                        ex        , //33:33
                        eret_flush, //32:32
@@ -158,10 +164,25 @@ assign ws_to_ds_bus = {rf_we            ,  //38:38
 
 wire        tlbp_op;
 wire [18:0] data_addr_vpn2;
-assign {tlbp_op,
+assign {tlbp_op       ,
         data_addr_vpn2,
         s1_odd_page
        } = es_to_tlb_bus;
+assign {s0_vpn2    ,
+        s0_odd_page
+       } = fs_to_tlb_bus;
+       
+assign tlb_to_es_bus = {s1_found,
+                        s1_pfn  ,
+                        s1_c    ,
+                        s1_d    ,
+                        s1_v    
+                       };
+assign tlb_to_fs_bus = {s0_found,
+                        s0_pfn  ,
+                        s0_c    ,
+                        s0_v    
+                       };
 
 assign ws_ready_go = 1'b1;
 assign ws_allowin  = !ws_valid || ws_ready_go;
@@ -235,6 +256,7 @@ assign ws_to_es_mtc0 = mtc0_we;
 //exception
 assign ws_flush = ws_valid && (ws_ex || ws_eret_flush || ws_tlb_flush);
 assign has_int  = (c0_cause[15:8] & c0_status[15:8])!=8'h00 && c0_status[0]==1'b1 && c0_status[1]==1'b0;
+assign tlb_ref  = ws_valid && ws_tlb_ref;
 
 cp0 u_cp0(
     .clk(clk),

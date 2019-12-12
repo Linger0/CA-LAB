@@ -43,9 +43,9 @@ wire        es_ready_go     ;
 
 reg         div_is_finished ;
 
-wire        data_addr_mapped;
-
 reg  [`DS_TO_ES_BUS_WD -1:0] ds_to_es_bus_r;
+wire        es_inst_tlb_inv ;
+wire        es_inst_tlb_ref ;
 wire        es_tlb_flush    ;
 wire        es_tlbr_op      ;
 wire        es_tlbwi_op     ;
@@ -92,7 +92,9 @@ wire [15:0] es_imm          ;
 wire [31:0] es_rs_value     ;
 wire [31:0] es_rt_value     ;
 wire [31:0] es_pc           ;
-assign {es_tlb_flush    ,  //172:172
+assign {es_inst_tlb_inv ,  //174:174
+        es_inst_tlb_ref ,  //173:173
+        es_tlb_flush    ,  //172:172
         es_tlbr_op      ,  //171:171
         es_tlbwi_op     ,  //170:170
         es_tlbp_op      ,  //169:169
@@ -176,20 +178,42 @@ assign es_to_ds_bus = {es_rf_we         ,  //38:38
                        es_alu_result       //31:0
                       };
 
+wire        data_addr_mapped;
+wire        data_tlb_ref;
+wire        data_tlb_inv;
+
 wire        es_do_tlbp;
-wire [19:0] es_data_addr_vpn;
+wire [19:0] data_addr_vpn;
 assign es_to_tlb_bus = {es_do_tlbp,
-                        es_data_addr_vpn};
-assign es_data_addr_vpn = es_alu_result[31:12];
+                        data_addr_vpn};
+assign data_addr_vpn = es_alu_result[31:12];
+
+wire        s1_found;
+wire [19:0] data_addr_pfn;
+wire [ 2:0] s1_c;
+wire        s1_d;
+wire        s1_v;
+assign {s1_found     ,
+        data_addr_pfn,
+        s1_c         ,
+        s1_d         ,
+        s1_v
+       } = tlb_to_es_bus;
 
 wire        es_ex;
+wire        es_tlbl;
+wire        es_tlbs;
+wire        es_mod;
 wire        es_adel;
 wire        es_ades;
 wire        es_ov;
 wire [ 4:0] es_excode;
 wire [31:0] es_badvaddr;
 
-assign es_to_ms_bus = {es_tlb_flush   ,  //162:162
+wire        es_tlb_ref;
+
+assign es_to_ms_bus = {es_tlb_ref     ,  //163:163
+                       es_tlb_flush   ,  //162:162
                        es_tlbr_op     ,  //161:161
                        es_tlbwi_op    ,  //160:160
                        es_res_from_mem,  //159:159
@@ -320,12 +344,14 @@ assign data_req   = es_valid&&!es_ex && (es_mem_we || es_res_from_mem);
 assign data_wr    = es_mem_we;
 assign data_size  = 2'h2;
 assign data_wstrb = es_dram_wen;
-assign data_addr  = es_alu_result;
+assign data_addr  = {data_addr_mapped?data_addr_pfn:es_alu_result[31:12], es_alu_result[11:0]};
 assign data_wdata = es_st_byte  ? {4{es_rt_value[7:0]}} : 
                     es_st_half  ? {2{es_rt_value[15:0]}} : 
                     es_st_left  ? swl_result :
                     es_st_right ? swr_result :
                                   es_rt_value;
+
+assign data_addr_mapped = (es_alu_result[31:30] != 2'b10);
 
 // to ds: for forwarding
 assign es_rf_we          = es_valid&&es_gr_we;
@@ -365,21 +391,33 @@ assign lo_wdata = es_mul_op ? es_mul_prod[31:0] :
                               es_rs_value;
 
 // exception
-assign es_ex     = es_old_ex | es_adel | es_ades | es_ov | ms_to_es_ex | es_flush;
-assign es_adel   = es_pc_ex                             /* pc */
-                || es_load_word&&~es_mem_byte_d[2'h0]   /* inst_lw */
+assign es_ex     = es_old_ex | es_adel | es_ades | es_ov | es_tlbl | es_tlbs | es_mod | ms_to_es_ex | es_flush;
+assign es_adel   = es_load_word&&~es_mem_byte_d[2'h0]   /* inst_lw */
                 || es_load_half&&es_alu_result[0];      /* inst_lh */
 assign es_ades   = es_mem_we&&~es_st_byte&&~es_st_half&&~es_st_left&&~es_st_right&&~es_mem_byte_d[2'h0] /* inst_sw */
                 || es_st_half&&es_alu_result[0];                                                        /* inst_sh */
 assign es_ov     = es_check_ov&&es_alu_ov;
-assign es_excode = es_int        ? `EX_INT :
-                   es_syscall_op ? `EX_SYS :
-                   es_break_op   ? `EX_BP :
-                   es_adel       ? `EX_ADEL :
-                   es_ades       ? `EX_ADES :
-                   es_ov         ? `EX_OV :
-                   es_ri         ? `EX_RI : 5'h0;
-assign es_badvaddr = es_pc_ex ? es_pc : es_alu_result;
+assign es_tlbl   = es_res_from_mem&&(data_tlb_ref || data_tlb_inv);
+assign es_tlbs   = es_mem_we&&(data_tlb_ref || data_tlb_inv);
+assign es_mod    = es_mem_we&&data_addr_mapped&&~s1_d;
+assign es_excode = es_int          ? `EX_INT :
+                   es_pc_ex        ? `EX_ADEL :
+                   es_inst_tlb_ref ? `EX_TLBL :
+                   es_inst_tlb_inv ? `EX_TLBL :
+                   es_ri           ? `EX_RI :
+                   es_syscall_op   ? `EX_SYS :
+                   es_break_op     ? `EX_BP :
+                   es_ov           ? `EX_OV :
+                   es_adel         ? `EX_ADEL :
+                   es_ades         ? `EX_ADES : 
+                   es_tlbl         ? `EX_TLBL :
+                   es_tlbs         ? `EX_TLBS :
+                   es_mod          ? `EX_MOD : 5'h0;
+assign es_badvaddr = (es_pc_ex|es_inst_tlb_ref|es_inst_tlb_inv) ? es_pc : es_alu_result;
+assign es_tlb_ref  = (es_excode==`EX_TLBL||es_excode==`EX_TLBS) && (es_inst_tlb_ref||data_tlb_ref);
+
+assign data_tlb_ref = (es_res_from_mem|es_mem_we) & data_addr_mapped & ~s1_found;
+assign data_tlb_inv = (es_res_from_mem|es_mem_we) & data_addr_mapped & ~s1_v;
 
 // to tlb
 assign es_do_tlbp = es_valid&&es_tlbp_op&&!es_ex&&!ms_to_es_mtc0&&!ws_to_es_mtc0;

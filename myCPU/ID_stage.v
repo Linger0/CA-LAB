@@ -32,14 +32,20 @@ wire [31                 :0] fs_pc;
 reg  [`FS_TO_DS_BUS_WD -1:0] fs_to_ds_bus_r;
 assign fs_pc = fs_to_ds_bus[31:0];
 
+wire        ds_inst_tlb_inv;
+wire        ds_inst_tlb_ref;
+wire        ds_pc_ex;
 wire        ds_bd;
 wire        ds_old_ex;
 wire [31:0] ds_inst;
 wire [31:0] ds_pc  ;
-assign {ds_bd    ,
-        ds_old_ex,
-        ds_inst  ,
-        ds_pc    
+assign {ds_inst_tlb_inv, //68:68
+        ds_inst_tlb_ref, //67:67
+        ds_pc_ex       , //66:66
+        ds_bd          , //65:65
+        ds_old_ex      , //64:64
+        ds_inst        , //63:32
+        ds_pc            //31:0  
         } = fs_to_ds_bus_r;
 
 wire        rf_we   ;
@@ -59,7 +65,6 @@ wire        tlb_flush;
 wire        tlbr_op;
 wire        tlbwi_op;
 wire        tlbp_op;
-wire        ds_pc_ex;
 wire        check_ov;
 wire        ds_ri;
 wire        mfc0_op;
@@ -98,54 +103,57 @@ wire [ 4:0] dest;
 wire [15:0] imm;
 wire [31:0] rs_value;
 wire [31:0] rt_value;
-assign ds_to_es_bus = {tlb_flush    ,  //172:172
-                       tlbr_op      ,  //171:171
-                       tlbwi_op     ,  //170:170
-                       tlbp_op      ,  //169:169
-                       ds_bd        ,  //168:168
-                       ds_pc_ex     ,  //167:167
-                       ds_has_int   ,  //166:166
-                       check_ov     ,  //165:165
-                       ds_ri        ,  //164:164
-                       ds_ex        ,  //163:163
-                       ds_eret_flush,  //162:162 
-                       mfc0_op      ,  //161:161
-                       mtc0_op      ,  //160:160
-                       break_op     ,  //159:159
-                       syscall_op   ,  //158:158
-                       c0_addr      ,  //157:153
-                       st_byte      ,  //152:152
-                       st_half      ,  //151:151
-                       st_left      ,  //150:150
-                       st_right     ,  //149:149
-                       load_byte    ,  //148:148
-                       load_half    ,  //147:147
-                       load_signed  ,  //146:146
-                       load_left    ,  //145:145
-                       load_right   ,  //144:144
-                       mul_op       ,  //143:143
-                       div_op       ,  //142:142
-                       md_signed    ,  //141:141
-                       src1_is_hi   ,  //140:140
-                       src1_is_lo   ,  //139:139
-                       hi_we        ,  //138:138
-                       lo_we        ,  //137:137
-                       alu_op       ,  //136:125
-                       load_word    ,  //124:124
-                       src1_is_sa   ,  //123:123
-                       src1_is_pc   ,  //122:122
-                       src2_is_0eimm,  //121:121
-                       src2_is_imm  ,  //120:120
-                       src2_is_8    ,  //119:119
-                       gr_we        ,  //118:118
-                       mem_we       ,  //117:117
-                       dest         ,  //116:112
-                       imm          ,  //111:96
-                       rs_value     ,  //95 :64
-                       rt_value     ,  //63 :32
-                       ds_pc           //31 :0
+assign ds_to_es_bus = {ds_inst_tlb_inv,  //174:174
+                       ds_inst_tlb_ref,  //173:173
+                       tlb_flush      ,  //172:172
+                       tlbr_op        ,  //171:171
+                       tlbwi_op       ,  //170:170
+                       tlbp_op        ,  //169:169
+                       ds_bd          ,  //168:168
+                       ds_pc_ex       ,  //167:167
+                       ds_has_int     ,  //166:166
+                       check_ov       ,  //165:165
+                       ds_ri          ,  //164:164
+                       ds_ex          ,  //163:163
+                       ds_eret_flush  ,  //162:162 
+                       mfc0_op        ,  //161:161
+                       mtc0_op        ,  //160:160
+                       break_op       ,  //159:159
+                       syscall_op     ,  //158:158
+                       c0_addr        ,  //157:153
+                       st_byte        ,  //152:152
+                       st_half        ,  //151:151
+                       st_left        ,  //150:150
+                       st_right       ,  //149:149
+                       load_byte      ,  //148:148
+                       load_half      ,  //147:147
+                       load_signed    ,  //146:146
+                       load_left      ,  //145:145
+                       load_right     ,  //144:144
+                       mul_op         ,  //143:143
+                       div_op         ,  //142:142
+                       md_signed      ,  //141:141
+                       src1_is_hi     ,  //140:140
+                       src1_is_lo     ,  //139:139
+                       hi_we          ,  //138:138
+                       lo_we          ,  //137:137
+                       alu_op         ,  //136:125
+                       load_word      ,  //124:124
+                       src1_is_sa     ,  //123:123
+                       src1_is_pc     ,  //122:122
+                       src2_is_0eimm  ,  //121:121
+                       src2_is_imm    ,  //120:120
+                       src2_is_8      ,  //119:119
+                       gr_we          ,  //118:118
+                       mem_we         ,  //117:117
+                       dest           ,  //116:112
+                       imm            ,  //111:96
+                       rs_value       ,  //95 :64
+                       rt_value       ,  //63 :32
+                       ds_pc             //31 :0
                       };
 
+wire        inst_nop;
 wire        inst_addu;
 wire        inst_subu;
 wire        inst_slt;
@@ -323,6 +331,7 @@ decoder_5_32 u_dec3(.in(rt  ), .out(rt_d  ));
 decoder_5_32 u_dec4(.in(rd  ), .out(rd_d  ));
 decoder_5_32 u_dec5(.in(sa  ), .out(sa_d  ));
 
+assign inst_nop     = op_d[6'h00] & func_d[6'h00] & rs_d[5'h00] & rt_d[5'h00] & rd_d[5'h00] & sa_d[5'h00];
 assign inst_addu    = op_d[6'h00] & func_d[6'h21] & sa_d[5'h00];
 assign inst_subu    = op_d[6'h00] & func_d[6'h23] & sa_d[5'h00];
 assign inst_slt     = op_d[6'h00] & func_d[6'h2a] & sa_d[5'h00];
@@ -440,10 +449,10 @@ assign dst_is_rt     = inst_addiu | inst_lui | inst_lw  | inst_addi | inst_slti 
                      | inst_xori  | inst_lb  | inst_lbu | inst_lh   | inst_lhu  | inst_lwl   | inst_lwr  | inst_mfc0;
 assign hi_we         = inst_mthi | inst_mult | inst_multu | inst_div | inst_divu;
 assign lo_we         = inst_mtlo | inst_mult | inst_multu | inst_div | inst_divu;
-assign gr_we         = ~inst_sw   & ~inst_beq  & ~inst_bne  & ~inst_jr   & ~inst_mult & ~inst_multu   & ~inst_div   & ~inst_divu 
-                     & ~inst_mthi & ~inst_mtlo & ~inst_bgtz & ~inst_bgez & ~inst_bltz & ~inst_blez    & ~inst_j     & ~inst_sb    
-                     & ~inst_sh   & ~inst_swl  & ~inst_swr  & ~inst_mtc0 & ~inst_eret & ~inst_syscall & ~inst_break & ~inst_tlbp
-                     & ~inst_tlbr & ~inst_tlbwi; 
+assign gr_we         = ~inst_sw   & ~inst_beq   & ~inst_bne  & ~inst_jr   & ~inst_mult & ~inst_multu   & ~inst_div   & ~inst_divu 
+                     & ~inst_mthi & ~inst_mtlo  & ~inst_bgtz & ~inst_bgez & ~inst_bltz & ~inst_blez    & ~inst_j     & ~inst_sb    
+                     & ~inst_sh   & ~inst_swl   & ~inst_swr  & ~inst_mtc0 & ~inst_eret & ~inst_syscall & ~inst_break & ~inst_tlbp
+                     & ~inst_tlbr & ~inst_tlbwi & ~inst_nop; 
                      /* attention: exclude no write-back instruction */
 assign mem_we        = inst_sw | inst_sb | inst_sh | inst_swl | inst_swr;
 
@@ -454,7 +463,6 @@ assign dest          = dst_is_r31 ? 5'd31 :
 
 // exception
 assign ds_ex    = ds_old_ex | syscall_op | break_op | ds_ri | ds_has_int;
-assign ds_pc_ex = ds_old_ex;
 assign ds_ri    = gr_we     & ~dst_is_rt  & ~src2_is_8  & ~inst_addu & ~inst_subu & ~inst_slt  & ~inst_sltu
                 & ~inst_and & ~inst_or    & ~inst_xor   & ~inst_nor  & ~inst_sll  & ~inst_srl  & ~inst_sra
                 & ~inst_add & ~inst_sub   & ~inst_sllv  & ~inst_srav & ~inst_srlv & ~inst_mfhi & ~inst_mflo;
