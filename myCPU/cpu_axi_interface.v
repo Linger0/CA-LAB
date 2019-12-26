@@ -6,10 +6,12 @@ module cpu_axi_interface
     //inst sram-like 
     input         inst_req    ,
     input  [ 1:0] inst_size   ,
+    input  [ 2:0] inst_len    ,
     input  [31:0] inst_addr   ,
     output [31:0] inst_rdata  ,
     output        inst_addr_ok,
     output reg    inst_data_ok,
+    output reg    inst_last   ,
     
     //data sram-like 
     input         data_req    ,
@@ -72,6 +74,7 @@ reg         arid_is_0;
 
 reg         handle_inst_req;
 reg  [ 1:0] inst_size_r;
+reg  [ 2:0] inst_len_r;
 reg  [31:0] inst_addr_r;
 reg         wait_inst_data;
 
@@ -94,11 +97,12 @@ always @(posedge clk) begin
         handle_inst_req <= 0;
     else if (!handle_inst_req)
         handle_inst_req <= inst_req;
-    else if (rid==0 && rvalid && rready)
+    else if (rid==0 && rvalid && rlast)
         handle_inst_req <= 0;
     
     if (!handle_inst_req && inst_req) begin
         inst_size_r <= inst_size;
+        inst_len_r  <= inst_len;
         inst_addr_r <= inst_addr;
     end
     
@@ -108,6 +112,13 @@ always @(posedge clk) begin
         inst_data_ok <= 1;
     else if (inst_data_ok)
         inst_data_ok <= 0;
+        
+    if (!resetn)
+        inst_last <= 0;
+    else if (rid==0 && rvalid && rlast)
+        inst_last <= 1;
+    else if (inst_last)
+        inst_last <= 0;
 end
 
 // data sram-like
@@ -141,7 +152,7 @@ always @(posedge clk) begin
         wait_inst_data <= 0;
     else if (arid==0 && arvalid && arready)
         wait_inst_data <= 1;
-    else if (rid==0 && rvalid && rready)
+    else if (rid==0 && rvalid && rlast)
         wait_inst_data <= 0;
 end
 
@@ -195,6 +206,7 @@ end
 assign arid         = ~arid_is_0&&handle_data_req&&!data_wr_r&&!wait_data_rdata ? 1 : 0;    // 取数置为1
 assign araddr       = arid==1 ? data_addr_r : inst_addr_r;
 assign arsize       = arid==1 ? {1'b0, data_size_r} : {1'b0, inst_size_r};
+assign arlen        = arid==1 ? 8'b0 : {5'b0,inst_len_r};
 assign arvalid      = handle_data_req&&!data_wr_r&&!wait_data_rdata 
                    || handle_inst_req&&!wait_inst_data;
 // r
@@ -213,7 +225,6 @@ assign data_addr_ok = !handle_data_req && data_req;
 assign data_rdata   = rdata_r;
 
 // 固定信号
-assign arlen    = 0;
 assign arburst  = 2'b01;
 assign arlock   = 0;
 assign arcache  = 0;

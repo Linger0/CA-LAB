@@ -83,13 +83,15 @@ wire [`TLB_TO_FS_BUS_WD -1:0] tlb_to_fs_bus;
 
 wire        ms_to_es_ex;
 wire        ms_to_es_mtc0;
-
 wire        ws_to_es_mtc0;
 
 //inst sram-like 
 wire        inst_req    ;
+wire        inst_wr     ;
+wire [ 2:0] inst_cache  ;
 wire [ 1:0] inst_size   ;
 wire [31:0] inst_addr   ;
+wire [ 3:0] inst_wstrb  ;
 wire [31:0] inst_rdata  ;
 wire        inst_addr_ok;
 wire        inst_data_ok;
@@ -106,6 +108,25 @@ wire        data_data_ok;
 
 wire        flush;
 wire        has_int;
+
+wire [ 2:0] inst_len;
+wire [ 7:0] i_index;
+wire [19:0] i_tag;
+wire [ 3:0] i_offset;
+wire        rd_req;
+wire [ 2:0] rd_type;
+wire [31:0] rd_addr;
+wire        rd_rdy;
+wire [31:0] ret_data;
+wire        ret_valid;
+wire        ret_last;
+
+assign inst_cache = (inst_addr[31:29]==3'h4) ? 3'h3 : 3'h2;
+
+assign inst_wr    = 1'b0;
+assign inst_wstrb = 4'h0;
+assign inst_len = (rd_type == 3'b100) ? 3'b011 : 3'b000;
+assign {i_tag,i_index,i_offset} = inst_addr;
 
 // IF stage
 if_stage if_stage(
@@ -249,12 +270,14 @@ cpu_axi_interface u_axi_ifc(
     .clk           (aclk         ),
     .resetn        (aresetn      ),
     //inst sram-like 
-    .inst_req      (inst_req     ),
+    .inst_req      (rd_req       ),
     .inst_size     (inst_size    ),
-    .inst_addr     (inst_addr    ),
-    .inst_rdata    (inst_rdata   ),
-    .inst_addr_ok  (inst_addr_ok ),
-    .inst_data_ok  (inst_data_ok ),
+    .inst_len      (inst_len     ),
+    .inst_addr     (rd_addr      ),
+    .inst_rdata    (ret_data     ),
+    .inst_addr_ok  (rd_rdy       ),
+    .inst_data_ok  (ret_valid    ),
+    .inst_last     (ret_last     ),
     //data sram-like 
     .data_req      (data_req     ),
     .data_wr       (data_wr      ),
@@ -307,6 +330,33 @@ cpu_axi_interface u_axi_ifc(
     .bresp     (bresp        ),
     .bvalid    (bvalid       ),
     .bready    (bready       )
+);
+
+// cache
+// I-cache
+cache i_cache(
+    .clk       (aclk        ),
+    .resetn    (aresetn     ),
+    // sram-like
+    .valid     (inst_req    ),
+    .cachable  (inst_cache  ),
+    .op        (inst_wr     ),
+    .index     (i_index     ),
+    .tlb_tag   (i_tag       ),
+    .offset    (i_offset    ),
+    .wstrb     (inst_wstrb  ),
+ // .wdata
+    .addr_ok   (inst_addr_ok),
+    .data_ok   (inst_data_ok),
+    .rdata     (inst_rdata  ),
+    // axi: read
+    .rd_req    (rd_req      ),
+    .rd_type   (rd_type     ),
+    .rd_addr   (rd_addr     ),
+    .rd_rdy    (rd_rdy      ),
+    .ret_valid (ret_valid   ),
+    .ret_last  (ret_last    ),
+    .ret_data  (ret_data    )
 );
 
 endmodule

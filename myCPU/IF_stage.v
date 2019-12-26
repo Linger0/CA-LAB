@@ -54,6 +54,8 @@ assign {s0_found,
         s0_v
        } = tlb_to_fs_bus;
 
+assign fs_to_tlb_bus  = nextpc[31:12];
+
 reg         buf_br;
 
 reg         fs_inst_tlb_ref;
@@ -101,9 +103,8 @@ assign nextpc       = tlb_ref          ? 32'hbfc00200 :
                       buf_nextpc_valid ? buf_nextpc :
                                          seq_pc;
 
-assign inst_addr_mapped = (nextpc[31:30] != 2'b10);
-
-assign fs_to_tlb_bus  = nextpc[31:12];
+// assign inst_addr_mapped = (nextpc[31:30] != 2'b10);
+assign inst_addr_mapped = 1'b0;
 
 always @(posedge clk) begin
     if (reset) begin
@@ -121,7 +122,7 @@ always @(posedge clk) begin
     end
 end
 
-// pre-IF: exception
+// exception: pre-IF
 assign inst_tlb_ref     = inst_addr_mapped & ~s0_found;
 assign inst_tlb_inv     = inst_addr_mapped & ~s0_v;
 
